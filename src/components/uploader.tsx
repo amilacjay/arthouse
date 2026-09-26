@@ -106,12 +106,26 @@ export function Uploader() {
   }, [accept]);
 
   return (
-    <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-4 py-8 sm:py-14">
+    // Deliberately NOT vertically centered with flex + overflow-y-auto: when
+    // content is taller than the viewport (any phone in portrait), unsafe
+    // flex/grid centering pushes the overflow above the container's own top
+    // edge, where it is clipped and unreachable by scrolling — the logo and
+    // heading disappear behind the header. Anchoring to the top instead is
+    // both the fix and, for a screen meant to feel like an app's own home
+    // screen, the more natural layout: content starts right under the header
+    // and simply scrolls if it runs long, exactly like a native onboarding
+    // screen rather than a desktop marketing page.
+    <div className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain">
       <div aria-hidden className="blueprint pointer-events-none absolute inset-0" />
 
-      <div className="relative w-full max-w-lg animate-rise">
-        <div className="flex flex-col items-center text-center">
-          <Logomark className="h-12 w-12" />
+      <div
+        className="relative mx-auto flex w-full max-w-lg flex-col px-4 pb-10 sm:px-6 sm:pb-16"
+        style={{ paddingTop: "max(1.75rem, env(safe-area-inset-top, 0px))" }}
+      >
+        <div className="flex animate-rise flex-col items-center pt-4 text-center sm:pt-8">
+          <span className="flex h-16 w-16 items-center justify-center rounded-[22px] bg-accent-soft ring-1 ring-accent/15">
+            <Logomark className="h-9 w-9" />
+          </span>
           <h1 className="mt-5 text-[26px] leading-tight font-semibold tracking-[-0.02em] text-fg sm:text-[32px]">
             Grid your reference photo
           </h1>
@@ -123,7 +137,7 @@ export function Uploader() {
 
         <div
           className={cx(
-            "mt-7 rounded-2xl border-2 border-dashed bg-surface/80 p-6 text-center backdrop-blur transition-colors sm:p-8",
+            "mt-7 animate-rise rounded-2xl border-2 border-dashed bg-surface/80 p-6 text-center backdrop-blur transition-colors sm:p-8",
             dragging
               ? "border-accent bg-accent-soft"
               : "border-line-strong hover:border-accent/60",
@@ -186,12 +200,21 @@ export function Uploader() {
           </div>
         )}
 
-        <ul className="mt-8 grid gap-4 sm:grid-cols-3">
+        <ul className="mt-8 flex animate-rise flex-col gap-3 sm:grid sm:grid-cols-3 sm:gap-4">
           {FEATURES.map(({ Icon, title, body }) => (
-            <li key={title} className="text-left">
-              <Icon size={17} className="text-accent" strokeWidth={2} />
-              <h2 className="mt-2 text-[13px] font-semibold text-fg">{title}</h2>
-              <p className="mt-1 text-[12px] leading-relaxed text-muted">{body}</p>
+            <li
+              key={title}
+              className="flex items-start gap-3 rounded-2xl border border-line bg-surface/60 p-3.5 text-left sm:flex-col sm:gap-0 sm:border-0 sm:bg-transparent sm:p-0"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-soft sm:h-8 sm:w-8">
+                <Icon size={16} className="text-accent" strokeWidth={2.1} />
+              </span>
+              <span className="min-w-0 sm:mt-2.5">
+                <h2 className="text-[13px] font-semibold text-fg">{title}</h2>
+                <p className="mt-0.5 text-[12px] leading-relaxed text-muted">
+                  {body}
+                </p>
+              </span>
             </li>
           ))}
         </ul>

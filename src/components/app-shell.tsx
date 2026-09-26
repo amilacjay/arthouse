@@ -80,7 +80,10 @@ export function AppShell() {
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
-      <header className="z-20 flex shrink-0 items-center justify-between gap-2 border-b border-line bg-surface px-3 py-2 sm:px-4">
+      <header
+        className="z-20 flex shrink-0 items-center justify-between gap-2 border-b border-line bg-surface px-3 py-2 sm:px-4"
+        style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top, 0px))" }}
+      >
         <BrandLock />
 
         <div className="flex items-center gap-1 sm:gap-2">

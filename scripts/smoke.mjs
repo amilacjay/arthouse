@@ -34,6 +34,35 @@ await page.goto(BASE, { waitUntil: "networkidle" });
 await page.getByText("Grid your reference photo").waitFor({ timeout: 20000 });
 log("-- landing page rendered");
 
+// --- Regression: the welcome screen used to vertically-center its content
+// with flexbox inside an overflow-y-auto container. On any viewport short
+// enough that the content didn't fit — i.e. most phones — the overflow was
+// pushed above the container's own top edge, where it is clipped and
+// unreachable by scrolling: the logo and heading disappeared behind the
+// header, permanently, with no way to scroll up to them (scrollTop was
+// already 0). This reproduces in plain Chrome, not just WebKit, so it
+// belongs in this suite. ---
+{
+  const shortCtx = await browser.newContext({ viewport: { width: 375, height: 640 } });
+  const shortPage = await shortCtx.newPage();
+  await shortPage.goto(BASE, { waitUntil: "networkidle" });
+  await shortPage.waitForTimeout(300);
+  const clip = await shortPage.evaluate(() => {
+    const header = document.querySelector("header");
+    const scroller = header?.nextElementSibling;
+    const logo = scroller?.querySelector("svg");
+    const headerBottom = header?.getBoundingClientRect().bottom ?? 0;
+    const logoTop = logo?.getBoundingClientRect().top ?? -1;
+    return { headerBottom, logoTop, scrollTop: scroller?.scrollTop ?? -1 };
+  });
+  log("   welcome-screen clip check:", clip);
+  ok(
+    clip.logoTop >= clip.headerBottom - 1,
+    `the logo isn't clipped above the header on a short viewport (logo top ${clip.logoTop.toFixed(1)} vs header bottom ${clip.headerBottom.toFixed(1)})`,
+  );
+  await shortCtx.close();
+}
+
 // Build a colourful test photo in the browser and save it to disk.
 const dataUrl = await page.evaluate(() => {
   const c = document.createElement("canvas");
