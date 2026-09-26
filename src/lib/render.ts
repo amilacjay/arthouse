@@ -20,17 +20,31 @@ import type {
 
 let ctxFilterSupport: boolean | null = null;
 
-/** Canvas `ctx.filter` is unavailable on older Safari; we fall back to a matrix. */
+/**
+ * Canvas `ctx.filter` is unreliable on WebKit: some builds accept the string
+ * assignment (the property getter echoes it straight back) but never actually
+ * apply it to a draw — not even a plain `fillRect`. Checking the getter alone
+ * reports "supported" on those builds, which then silently renders every
+ * effect and adjustment as a no-op. So this renders a filtered pixel and
+ * inspects the actual output instead of trusting the property round-trip.
+ * Where it fails, `render.ts` falls back to the hand-rolled colour matrix in
+ * `filters.ts`, which works everywhere because it never touches `ctx.filter`.
+ */
 export function supportsCtxFilter(): boolean {
   if (ctxFilterSupport !== null) return ctxFilterSupport;
   try {
     const c = document.createElement("canvas");
-    c.width = 1;
-    c.height = 1;
+    c.width = 2;
+    c.height = 2;
     const ctx = c.getContext("2d");
     if (!ctx) return (ctxFilterSupport = false);
-    ctx.filter = "grayscale(1)";
-    ctxFilterSupport = ctx.filter === "grayscale(1)";
+    ctx.filter = "invert(1)";
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, 2, 2);
+    const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+    // Inverted white should read back as black. Anything still bright means
+    // the filter was accepted but never actually applied to the draw.
+    ctxFilterSupport = r < 40 && g < 40 && b < 40;
   } catch {
     ctxFilterSupport = false;
   }

@@ -9,6 +9,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "smoke": "node scripts/smoke.mjs",
+    "smoke:mobile": "node scripts/mobile.mjs",
     "perf": "node scripts/perf.mjs"
   },
   "dependencies": {

@@ -19,6 +19,7 @@ import { AdjustPanel } from "@/components/panels/adjust-panel";
 import { EffectsPanel } from "@/components/panels/effects-panel";
 import { GridPanel } from "@/components/panels/grid-panel";
 import { TransformPanel } from "@/components/panels/transform-panel";
+import { InstallButton } from "@/components/pwa";
 import { Stage } from "@/components/stage";
 import { ThemeCycleButton, ThemeToggle } from "@/components/theme-toggle";
 import { Button, IconButton } from "@/components/ui/controls";
@@ -118,6 +119,10 @@ export function AppShell() {
             </>
           )}
 
+          {/* Offered on the landing header where there's room; the busy
+              editing header stays uncluttered on small screens. */}
+          {!source && <InstallButton />}
+
           <div className="hidden sm:block">
             <ThemeToggle />
           </div>
@@ -161,13 +166,27 @@ function Workspace({ onExport }: { onExport: () => void }) {
     setCollapsed(false);
   };
 
+  // On mobile the photo always gets exactly the top half of the screen —
+  // a fixed height, not a flex-grow floor, so it can't be squeezed down by
+  // however tall the active control panel happens to be. Collapsing the
+  // controls hands that space back to the photo. Desktop is unaffected: the
+  // side-by-side layout there already gives the photo all the room it needs.
+  const stageWrapperClass = cx(
+    "flex min-h-0 flex-col lg:h-auto lg:flex-1 lg:min-h-0",
+    collapsed ? "flex-1" : "h-[50dvh] shrink-0",
+  );
+  const asideClass = cx(
+    "flex min-h-0 flex-col border-t border-line bg-surface lg:w-[368px] lg:flex-none lg:border-t-0 lg:border-l",
+    collapsed ? "flex-none" : "flex-1",
+  );
+
   return (
     <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-      <div className="flex min-h-[34vh] flex-1 flex-col lg:min-h-0">
+      <div className={stageWrapperClass}>
         <Stage />
       </div>
 
-      <aside className="flex min-h-0 shrink-0 flex-col border-t border-line bg-surface lg:w-[368px] lg:border-t-0 lg:border-l">
+      <aside className={asideClass}>
         <div className="flex shrink-0 items-center gap-1 border-b border-line px-2 py-1.5">
           <nav
             role="tablist"
@@ -213,7 +232,7 @@ function Workspace({ onExport }: { onExport: () => void }) {
         <div
           className={cx(
             "thin-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4",
-            collapsed ? "hidden lg:block" : "max-h-[46vh] lg:max-h-none",
+            collapsed && "hidden lg:block",
           )}
         >
           {panel === "effects" && <EffectsPanel />}
