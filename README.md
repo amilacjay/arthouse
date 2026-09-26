@@ -121,6 +121,33 @@ const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
 rendered pixels for exactly this reason — Chrome passing tells you nothing
 about Safari here, so both suites need to be green, not just `smoke`.
 
+### Sections are swiped through, not tapped for
+
+On a phone the four control sections (Effects, Adjust, Grid, Crop) are one
+horizontal scroll-snap pager, so they're browsed with a flick; the tab strip
+above follows the scroll position rather than driving it. The effect swatches
+are a swipeable filmstrip for the same reason, bleeding off the screen edge so
+it reads as something to swipe. `lg:` turns both back into a plain single
+panel and a three-column grid — swiping is not a mouse gesture.
+
+Three things make this work, and all three are load-bearing:
+
+- **Native scroll-snap, not pointer maths.** Momentum, rubber-banding and
+  accessibility come free, and nothing has to be re-implemented per browser.
+- **A guard while an animated scroll is in flight** (`animatingTo` in
+  `app-shell.tsx`). A smooth scroll fires scroll events the whole way; reading
+  the selected panel back out of those intermediate positions re-selects the
+  panel being scrolled *away from* and bounces straight back, so a tab tap
+  appears to do nothing. Those events are ignored until the target lands.
+- **`touch-action: pan-y` on `.range`.** Sliders drag along the same axis the
+  pager swipes on. That rule is what stops a slider drag from being stolen and
+  turned into a page change — it predates the pager, and removing it would
+  break adjusting on touch in a way no desktop test would catch.
+
+The scroll handler keys off `scrollWidth > clientWidth` rather than a
+breakpoint, so at `lg:` — where the same element is a plain vertical column —
+a desktop scroll can't be mistaken for a section change.
+
 ### The photo fills the top half of the screen, not a flex-grow guess
 
 The mobile layout used to give the photo a `min-h-[34vh]` *floor* inside a

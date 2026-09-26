@@ -108,6 +108,61 @@ const contrasted = await readPixel(0.3, 0.3);
 log("   after Contrast slider:", contrasted);
 ok(contrasted.r !== mono.r, "the Contrast slider changes rendered pixels on WebKit");
 
+// --- Sections are swiped, not hunted for in a list of buttons ---------
+const pager = () =>
+  page.evaluate(() => {
+    const el = document.querySelector(".no-scrollbar");
+    return el
+      ? { scrollLeft: Math.round(el.scrollLeft), clientWidth: el.clientWidth, scrollWidth: el.scrollWidth }
+      : null;
+  });
+const activeTab = () =>
+  page.evaluate(() =>
+    document.querySelector('[role="tab"][aria-selected="true"]')?.textContent?.trim(),
+  );
+
+const geometry = await pager();
+log("   pager:", JSON.stringify(geometry));
+ok(
+  !!geometry && geometry.scrollWidth > geometry.clientWidth + 2,
+  "the four sections are laid out as one swipeable pager",
+);
+
+const scrollPager = (x) =>
+  page.evaluate((x) => {
+    document.querySelector(".no-scrollbar").scrollLeft = x;
+  }, x);
+
+await scrollPager(geometry.clientWidth * 2);
+await page.waitForTimeout(500);
+ok((await activeTab()) === "Grid", "swiping two sections along selects Grid");
+
+// Tapping a tab must win over the scroll position, not fight it: a smooth
+// scroll fires scroll events the whole way, and reading the panel back out
+// of those intermediate positions used to bounce the selection straight back.
+await page.getByRole("tab", { name: "Effects" }).click();
+await page.waitForTimeout(800);
+ok((await pager()).scrollLeft < 10, "tapping a tab scrolls the pager to it");
+ok((await activeTab()) === "Effects", "the tab strip and the pager stay in sync");
+
+// --- The controls must not be buried under a permanent CTA ------------
+ok(
+  !(await page
+    .getByRole("button", { name: "Download reference" })
+    .isVisible()
+    .catch(() => false)),
+  "the full-width Download button doesn't eat mobile screen space",
+);
+
+// --- Sliders keep their own horizontal drags --------------------------
+ok(
+  (await page.evaluate(() => {
+    const el = document.querySelector(".range");
+    return el ? getComputedStyle(el).touchAction : null;
+  })) === "pan-y",
+  "sliders declare touch-action: pan-y, so a swipe can't steal their drag",
+);
+
 await page.screenshot({ path: path.join(OUT, "mobile-webkit.png") });
 
 await browser.close();

@@ -42,11 +42,22 @@ export function EffectsPanel() {
 
   return (
     <PanelSection title="Colour effect">
-      <p className="-mt-1 text-[12px] leading-snug text-muted">
+      {/* Vertical space is scarce on a phone; this is context, not a control. */}
+      <p className="-mt-1 hidden text-[12px] leading-snug text-muted lg:block">
         Monochrome strips colour so you can judge values — the reason most
         artists grid a photo in the first place.
       </p>
-      <div className="grid grid-cols-3 gap-2">
+      {/*
+        On a phone this is a swipeable filmstrip rather than a four-row grid:
+        it turns browsing effects into a flick instead of a scroll-and-hunt,
+        and gives back the vertical space the grid was eating. The negative
+        margin lets swatches run to both screen edges, so it reads as
+        something to swipe. `overscroll-x-contain` keeps a flick here from
+        chaining into the section pager behind it, so browsing effects can
+        never accidentally throw you into the Adjust tab.
+        At `lg:` it goes back to the three-column grid — a mouse has no flick.
+      */}
+      <div className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain px-4 pb-1 lg:mx-0 lg:grid lg:grid-cols-3 lg:overflow-x-visible lg:px-0 lg:pb-0">
         {EFFECTS.map((effect) => {
           const active = doc.effect === effect.id;
           return (
@@ -57,7 +68,7 @@ export function EffectsPanel() {
               title={effect.hint}
               aria-pressed={active}
               className={cx(
-                "group overflow-hidden rounded-xl border text-left transition-all",
+                "group w-[104px] shrink-0 snap-start overflow-hidden rounded-xl border text-left transition-all lg:w-auto lg:shrink",
                 active
                   ? "border-accent ring-2 ring-accent/40"
                   : "border-line hover:border-line-strong",

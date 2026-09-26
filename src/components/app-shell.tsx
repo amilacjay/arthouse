@@ -161,12 +161,110 @@ export function AppShell() {
 function Workspace({ onExport }: { onExport: () => void }) {
   const { panel, setPanel, cropping, setCropping } = useEditor();
   const [collapsed, setCollapsed] = useState(false);
+  const pagerRef = useRef<HTMLDivElement>(null);
+  const scrollRaf = useRef(0);
+  /**
+   * Scroll offset an animated (tab-tap) scroll is heading for, or null when
+   * any scrolling is the user's own swipe. A smooth scroll fires scroll events
+   * the whole way, and reading the panel back out of those intermediate
+   * positions would re-select the panel being scrolled *away from* and bounce
+   * straight back — so those events are ignored until the target lands.
+   */
+  const animatingTo = useRef<number | null>(null);
+  const animationTimeout = useRef(0);
 
   // The crop tool lives in the Crop tab; leaving the tab should leave the tool.
+  const leaveCropIfNeeded = useCallback(
+    (id: PanelId) => {
+      if (cropping && id !== "transform") setCropping(false);
+    },
+    [cropping, setCropping],
+  );
+
   const choose = (id: PanelId) => {
-    if (cropping && id !== "transform") setCropping(false);
+    leaveCropIfNeeded(id);
     setPanel(id);
     setCollapsed(false);
+  };
+
+  /**
+   * True only in the mobile pager layout. At `lg` the same element becomes a
+   * plain vertical column with no horizontal overflow, so this is a
+   * breakpoint-free way to ask "are we swiping between panels right now?"
+   * — which matters because the scroll handler below must not treat a
+   * desktop vertical scroll as a panel change.
+   */
+  const isPaging = (el: HTMLDivElement) => el.scrollWidth > el.clientWidth + 2;
+
+  const scrollToPanel = useCallback((id: PanelId, smooth = true) => {
+    const el = pagerRef.current;
+    if (!el || !isPaging(el)) return;
+    const index = Math.max(
+      0,
+      TABS.findIndex((t) => t.id === id),
+    );
+    const target = index * el.clientWidth;
+    if (Math.abs(el.scrollLeft - target) < 2) return;
+
+    animatingTo.current = target;
+    window.clearTimeout(animationTimeout.current);
+    // Fallback release, in case the animation is interrupted or lands a
+    // fraction short and never reports an exact hit.
+    animationTimeout.current = window.setTimeout(() => {
+      animatingTo.current = null;
+    }, 700);
+    el.scrollTo({ left: target, behavior: smooth ? "smooth" : "auto" });
+  }, []);
+
+  // Keep the pager aligned whenever the panel changes for any reason —
+  // a tab tap, or the store resetting to Effects when a new photo loads.
+  useEffect(() => {
+    scrollToPanel(panel);
+  }, [panel, scrollToPanel]);
+
+  // Re-snap after an orientation change or any resize, since the scroll
+  // offset of a panel is a multiple of the (now different) container width.
+  useEffect(() => {
+    const el = pagerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => scrollToPanel(panel, false));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [panel, scrollToPanel]);
+
+  useEffect(
+    () => () => {
+      cancelAnimationFrame(scrollRaf.current);
+      window.clearTimeout(animationTimeout.current);
+    },
+    [],
+  );
+
+  // Swiping is the primary way to move between sections on a phone; the tab
+  // strip above follows along rather than driving it.
+  const onPagerScroll = () => {
+    if (scrollRaf.current) return;
+    scrollRaf.current = requestAnimationFrame(() => {
+      scrollRaf.current = 0;
+      const el = pagerRef.current;
+      if (!el || !isPaging(el) || el.clientWidth === 0) return;
+
+      if (animatingTo.current !== null) {
+        // Still flying towards a tapped tab — only release once it lands.
+        if (Math.abs(el.scrollLeft - animatingTo.current) < 2) {
+          animatingTo.current = null;
+          window.clearTimeout(animationTimeout.current);
+        }
+        return;
+      }
+
+      const index = Math.round(el.scrollLeft / el.clientWidth);
+      const next = TABS[Math.min(TABS.length - 1, Math.max(0, index))]?.id;
+      if (next && next !== panel) {
+        leaveCropIfNeeded(next);
+        setPanel(next);
+      }
+    });
   };
 
   // On mobile the photo always gets exactly the top half of the screen —
@@ -201,9 +299,11 @@ function Workspace({ onExport }: { onExport: () => void }) {
               return (
                 <button
                   key={id}
+                  id={`tab-${id}`}
                   type="button"
                   role="tab"
                   aria-selected={active}
+                  aria-controls={`panel-${id}`}
                   onClick={() => choose(id)}
                   className={cx(
                     "flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 text-[11px] font-medium transition-colors sm:flex-row sm:justify-center sm:gap-1.5 sm:text-[12px]",
@@ -232,20 +332,53 @@ function Workspace({ onExport }: { onExport: () => void }) {
           </button>
         </div>
 
+        {/*
+          Mobile: a horizontal scroll-snap pager, so sections are swiped
+          through rather than hunted for in a strip of buttons. Using the
+          browser's own snap scrolling (instead of hand-rolled pointer maths)
+          keeps the momentum, rubber-banding and accessibility behaviour
+          native — and sliders inside the panels keep their own horizontal
+          drags, because `.range` sets `touch-action: pan-y`.
+
+          Desktop: `lg:` turns this back into a plain column showing only the
+          active panel, exactly as before — swiping is not a mouse gesture.
+        */}
         <div
+          ref={pagerRef}
+          onScroll={onPagerScroll}
           className={cx(
-            "thin-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4",
-            collapsed && "hidden lg:block",
+            "no-scrollbar flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain",
+            "lg:flex-col lg:snap-none lg:overflow-x-hidden lg:overflow-y-auto",
+            collapsed && "hidden lg:flex",
           )}
         >
-          {panel === "effects" && <EffectsPanel />}
-          {panel === "adjust" && <AdjustPanel />}
-          {panel === "grid" && <GridPanel />}
-          {panel === "transform" && <TransformPanel />}
+          {TABS.map(({ id }) => (
+            <div
+              key={id}
+              id={`panel-${id}`}
+              role="tabpanel"
+              aria-labelledby={`tab-${id}`}
+              className={cx(
+                "thin-scroll min-h-0 w-full shrink-0 snap-start overflow-y-auto overscroll-contain px-4 py-4",
+                "lg:shrink lg:snap-align-none",
+                panel !== id && "lg:hidden",
+              )}
+            >
+              {id === "effects" && <EffectsPanel />}
+              {id === "adjust" && <AdjustPanel />}
+              {id === "grid" && <GridPanel />}
+              {id === "transform" && <TransformPanel />}
+            </div>
+          ))}
         </div>
 
+        {/*
+          Only on desktop. On a phone this full-width button ate a permanent
+          slice of an already-tight screen and overlapped the controls; the
+          header's Download button is always reachable there instead.
+        */}
         <div
-          className="shrink-0 border-t border-line px-4 py-3"
+          className="hidden shrink-0 border-t border-line px-4 py-3 lg:block"
           style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))" }}
         >
           <Button variant="primary" size="lg" className="w-full" onClick={onExport}>

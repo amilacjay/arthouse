@@ -190,6 +190,20 @@
   position: relative;
 }
 
+/*
+ * The swipeable panel pager on mobile. The scrollbar itself is noise — the
+ * tab strip above it already says which section you're on — but the track
+ * still has to scroll, so this hides the bar without touching the overflow.
+ */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* ------------------------------------------------------------------ *
  * Scrollbars inside the control rail
  * ------------------------------------------------------------------ */
